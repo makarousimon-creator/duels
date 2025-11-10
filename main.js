@@ -172,10 +172,18 @@ function setupInput() {
 
 function setDirection(dir) {
   if (!dir) return;
-  // Prevent instant reversal.
-  if (dir.x === -state.direction.x && dir.y === -state.direction.y) {
+
+  const isOpposite = (a, b) => a.x === -b.x && a.y === -b.y;
+  const reversingPending = isOpposite(dir, state.pendingDirection);
+  const reversingCurrent = isOpposite(dir, state.direction);
+  const pendingMatchesCurrent =
+    state.pendingDirection.x === state.direction.x &&
+    state.pendingDirection.y === state.direction.y;
+
+  if (reversingPending || (reversingCurrent && pendingMatchesCurrent)) {
     return;
   }
+
   state.pendingDirection = dir;
 }
 
