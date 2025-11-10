@@ -89,10 +89,22 @@ function resetSnake(initial = false) {
 
 function spawnFood() {
   const margin = 80;
-  const width = Math.max(state.viewportWidth - margin * 2, margin);
-  const height = Math.max(state.viewportHeight - margin * 2, margin);
-  const x = margin + Math.random() * width;
-  const y = margin + Math.random() * height;
+  const marginX = Math.min(margin, state.viewportWidth / 2);
+  const marginY = Math.min(margin, state.viewportHeight / 2);
+
+  const minX = marginX;
+  const maxX = state.viewportWidth - marginX;
+  const minY = marginY;
+  const maxY = state.viewportHeight - marginY;
+
+  const x =
+    maxX <= minX
+      ? state.viewportWidth / 2
+      : minX + Math.random() * (maxX - minX);
+  const y =
+    maxY <= minY
+      ? state.viewportHeight / 2
+      : minY + Math.random() * (maxY - minY);
   return { x, y };
 }
 
