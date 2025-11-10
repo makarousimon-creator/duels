@@ -1,5 +1,9 @@
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
+const hud = document.querySelector(".hud");
+
+let hudHideTimer = null;
+let hudDismissed = false;
 
 const config = {
   speed: 120,
@@ -47,7 +51,28 @@ function init() {
   window.addEventListener("resize", resize);
   setupInput();
   resetSnake(true);
+  scheduleHudHide();
   requestAnimationFrame(loop);
+}
+
+function scheduleHudHide() {
+  if (!hud || hudDismissed) return;
+  if (hudHideTimer) {
+    clearTimeout(hudHideTimer);
+  }
+  hudHideTimer = window.setTimeout(() => {
+    dismissHud();
+  }, 9000);
+}
+
+function dismissHud() {
+  if (!hud || hudDismissed) return;
+  hudDismissed = true;
+  hud.classList.add("hud--hidden");
+  if (hudHideTimer) {
+    clearTimeout(hudHideTimer);
+    hudHideTimer = null;
+  }
 }
 
 function resetSnake(initial = false) {
