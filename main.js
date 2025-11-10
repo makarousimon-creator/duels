@@ -213,13 +213,18 @@ function update(dt) {
 
   const step = config.speed * dt;
   const head = state.points[0];
-  const newHead = {
+  const proposedHead = {
     x: head.x + state.direction.x * step,
     y: head.y + state.direction.y * step,
   };
 
+  const segmentDistance = Math.hypot(
+    proposedHead.x - head.x,
+    proposedHead.y - head.y
+  );
+
+  const newHead = { ...proposedHead };
   wrapPosition(newHead);
-  const segmentDistance = Math.hypot(newHead.x - head.x, newHead.y - head.y);
   if (segmentDistance > 0) {
     state.points.unshift(newHead);
     state.totalLength += segmentDistance;
