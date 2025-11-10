@@ -88,24 +88,28 @@ function resetSnake(initial = false) {
 }
 
 function spawnFood() {
-  const margin = 80;
-  const marginX = Math.min(margin, state.viewportWidth / 2);
-  const marginY = Math.min(margin, state.viewportHeight / 2);
+  const padding = 80;
+  const availableWidth = Math.max(state.viewportWidth - padding * 2, 0);
+  const availableHeight = Math.max(state.viewportHeight - padding * 2, 0);
 
-  const minX = marginX;
-  const maxX = state.viewportWidth - marginX;
-  const minY = marginY;
-  const maxY = state.viewportHeight - marginY;
+  let x = padding + Math.random() * availableWidth;
+  let y = padding + Math.random() * availableHeight;
 
-  const x =
-    maxX <= minX
-      ? state.viewportWidth / 2
-      : minX + Math.random() * (maxX - minX);
-  const y =
-    maxY <= minY
-      ? state.viewportHeight / 2
-      : minY + Math.random() * (maxY - minY);
-  return { x, y };
+  if (availableWidth === 0 || availableHeight === 0) {
+    x = state.viewportWidth / 2;
+    y = state.viewportHeight / 2;
+  }
+
+  const clamp = (value, min, max) => Math.max(min, Math.min(value, max));
+  const xMin = Math.min(padding, state.viewportWidth - padding);
+  const xMax = Math.max(padding, state.viewportWidth - padding);
+  const yMin = Math.min(padding, state.viewportHeight - padding);
+  const yMax = Math.max(padding, state.viewportHeight - padding);
+
+  return {
+    x: clamp(x, xMin, xMax),
+    y: clamp(y, yMin, yMax),
+  };
 }
 
 function setupInput() {
@@ -184,10 +188,18 @@ function setupInput() {
 
 function setDirection(dir) {
   if (!dir) return;
-  // Prevent instant reversal.
-  if (dir.x === -state.direction.x && dir.y === -state.direction.y) {
+
+  const isOpposite = (a, b) => a.x === -b.x && a.y === -b.y;
+  const reversingPending = isOpposite(dir, state.pendingDirection);
+  const reversingCurrent = isOpposite(dir, state.direction);
+  const pendingMatchesCurrent =
+    state.pendingDirection.x === state.direction.x &&
+    state.pendingDirection.y === state.direction.y;
+
+  if (reversingPending || (reversingCurrent && pendingMatchesCurrent)) {
     return;
   }
+
   state.pendingDirection = dir;
 }
 
