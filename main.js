@@ -88,12 +88,28 @@ function resetSnake(initial = false) {
 }
 
 function spawnFood() {
-  const margin = 80;
-  const width = Math.max(state.viewportWidth - margin * 2, margin);
-  const height = Math.max(state.viewportHeight - margin * 2, margin);
-  const x = margin + Math.random() * width;
-  const y = margin + Math.random() * height;
-  return { x, y };
+  const padding = 80;
+  const availableWidth = Math.max(state.viewportWidth - padding * 2, 0);
+  const availableHeight = Math.max(state.viewportHeight - padding * 2, 0);
+
+  let x = padding + Math.random() * availableWidth;
+  let y = padding + Math.random() * availableHeight;
+
+  if (availableWidth === 0 || availableHeight === 0) {
+    x = state.viewportWidth / 2;
+    y = state.viewportHeight / 2;
+  }
+
+  const clamp = (value, min, max) => Math.max(min, Math.min(value, max));
+  const xMin = Math.min(padding, state.viewportWidth - padding);
+  const xMax = Math.max(padding, state.viewportWidth - padding);
+  const yMin = Math.min(padding, state.viewportHeight - padding);
+  const yMax = Math.max(padding, state.viewportHeight - padding);
+
+  return {
+    x: clamp(x, xMin, xMax),
+    y: clamp(y, yMin, yMax),
+  };
 }
 
 function setupInput() {
