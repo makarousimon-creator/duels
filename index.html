@@ -3,46 +3,356 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Eon — Цикл жизни | Интерактивная игра</title>
-  <meta name="description" content="Eon — философская игра о цикле жизни. Направляйте поток света, собирайте энергию и переживайте бесконечные перерождения. Играйте на desktop и мобильных устройствах." />
-  <meta name="keywords" content="игра, цикл жизни, перерождение, браузерная игра, canvas, html5" />
+  <title>Quantum Garden — Интерактивная симуляция физики</title>
+  <meta name="description" content="Создавайте частицы, рисуйте силовые поля и наблюдайте за эмергентным поведением в интерактивной физической симуляции." />
+  <meta name="keywords" content="физика, симуляция, частицы, творчество, интерактивная игра, webgl" />
   <meta name="author" content="makarousimon-creator" />
 
-  <!-- Open Graph / Social Media -->
+  <!-- Open Graph -->
   <meta property="og:type" content="website" />
-  <meta property="og:title" content="Eon — Цикл жизни" />
-  <meta property="og:description" content="Философская игра о цикле жизни и перерождении. Направляйте поток света и собирайте энергию." />
-  <meta property="og:site_name" content="Eon" />
+  <meta property="og:title" content="Quantum Garden — Симуляция физики" />
+  <meta property="og:description" content="Интерактивная симуляция физики с частицами и силовыми полями" />
 
-  <!-- Theme Color -->
+  <!-- Theme -->
   <meta name="theme-color" content="#0a0a16" />
-
-  <!-- Favicon -->
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
 
-  <link rel="stylesheet" href="style.css" />
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0a0a12;
+      color: #fff;
+    }
+
+    #app {
+      width: 100%;
+      height: 100%;
+      position: relative;
+    }
+
+    #canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      cursor: crosshair;
+    }
+
+    /* Loading screen */
+    #loading {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: #0a0a12;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      transition: opacity 0.5s ease;
+    }
+
+    #loading.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .loading-content {
+      text-align: center;
+    }
+
+    .loading-spinner {
+      width: 50px;
+      height: 50px;
+      border: 3px solid rgba(100, 200, 255, 0.2);
+      border-top-color: rgba(100, 200, 255, 0.8);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 20px;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* UI Container */
+    #ui {
+      position: fixed;
+      pointer-events: none;
+      z-index: 100;
+      inset: 0;
+    }
+
+    #ui > * {
+      pointer-events: auto;
+    }
+
+    /* Toolbar */
+    .toolbar {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      background: rgba(15, 15, 25, 0.85);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(100, 200, 255, 0.2);
+      border-radius: 12px;
+      padding: 12px;
+      display: flex;
+      gap: 8px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    }
+
+    .tool-btn {
+      width: 44px;
+      height: 44px;
+      border: none;
+      background: rgba(255, 255, 255, 0.05);
+      color: rgba(255, 255, 255, 0.7);
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+      position: relative;
+    }
+
+    .tool-btn:hover {
+      background: rgba(100, 200, 255, 0.15);
+      color: rgba(255, 255, 255, 0.95);
+      transform: translateY(-2px);
+    }
+
+    .tool-btn.active {
+      background: rgba(100, 200, 255, 0.25);
+      color: #fff;
+      box-shadow: 0 0 20px rgba(100, 200, 255, 0.3);
+    }
+
+    .tool-btn:active {
+      transform: translateY(0);
+    }
+
+    /* Stats */
+    .stats {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: rgba(15, 15, 25, 0.85);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(100, 200, 255, 0.2);
+      border-radius: 12px;
+      padding: 16px;
+      font-size: 13px;
+      line-height: 1.6;
+      min-width: 180px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    }
+
+    .stats-title {
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: rgba(100, 200, 255, 0.9);
+      text-transform: uppercase;
+      font-size: 11px;
+      letter-spacing: 1px;
+    }
+
+    .stats-item {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 4px;
+      color: rgba(255, 255, 255, 0.7);
+    }
+
+    .stats-value {
+      color: rgba(100, 200, 255, 0.95);
+      font-weight: 500;
+    }
+
+    /* Info panel */
+    .info-panel {
+      position: absolute;
+      bottom: 20px;
+      left: 20px;
+      background: rgba(15, 15, 25, 0.85);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(100, 200, 255, 0.2);
+      border-radius: 12px;
+      padding: 16px 20px;
+      max-width: 400px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+      opacity: 0;
+      transform: translateY(20px);
+      transition: all 0.3s ease;
+    }
+
+    .info-panel.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .info-title {
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: rgba(100, 200, 255, 0.9);
+    }
+
+    .info-text {
+      font-size: 13px;
+      line-height: 1.6;
+      color: rgba(255, 255, 255, 0.7);
+    }
+
+    /* Controls panel */
+    .controls-panel {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      background: rgba(15, 15, 25, 0.85);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(100, 200, 255, 0.2);
+      border-radius: 12px;
+      padding: 16px;
+      display: flex;
+      gap: 12px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    }
+
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .control-label {
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.5);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .control-slider {
+      width: 120px;
+      height: 4px;
+      -webkit-appearance: none;
+      appearance: none;
+      background: rgba(100, 200, 255, 0.2);
+      border-radius: 2px;
+      outline: none;
+    }
+
+    .control-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 14px;
+      height: 14px;
+      background: rgba(100, 200, 255, 0.9);
+      border-radius: 50%;
+      cursor: pointer;
+    }
+
+    .control-slider::-moz-range-thumb {
+      width: 14px;
+      height: 14px;
+      background: rgba(100, 200, 255, 0.9);
+      border-radius: 50%;
+      cursor: pointer;
+      border: none;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .toolbar {
+        top: 10px;
+        left: 10px;
+        padding: 8px;
+        gap: 6px;
+      }
+
+      .tool-btn {
+        width: 38px;
+        height: 38px;
+        font-size: 18px;
+      }
+
+      .stats, .info-panel, .controls-panel {
+        font-size: 12px;
+      }
+
+      .controls-panel {
+        flex-direction: column;
+      }
+    }
+  </style>
 </head>
 <body>
-  <div class="hud" role="complementary" aria-live="polite">
-    <h2 class="hud__title">Как играть</h2>
-    <p class="hud__goal">
-      Направляйте поток света, собирайте сферу энергии и избегайте столкновений с собственным следом.
-    </p>
-    <ul class="hud__controls">
-      <li><strong>Desktop:</strong> стрелки или WASD.</li>
-      <li><strong>Сенсор:</strong> свайп по экрану.</li>
-      <li><strong>Мобильные стрелки:</strong> кнопки ниже канваса.</li>
-    </ul>
-  </div>
-  <canvas id="game"></canvas>
-  <div class="controls" aria-hidden="true">
-    <button class="arrow" data-dir="up">▲</button>
-    <div class="arrow-row">
-      <button class="arrow" data-dir="left">◀</button>
-      <button class="arrow" data-dir="down">▼</button>
-      <button class="arrow" data-dir="right">▶</button>
+  <div id="loading">
+    <div class="loading-content">
+      <div class="loading-spinner"></div>
+      <div>Загрузка Quantum Garden...</div>
     </div>
   </div>
-  <script src="main.js"></script>
+
+  <div id="app">
+    <canvas id="canvas"></canvas>
+
+    <div id="ui">
+      <div class="toolbar">
+        <button class="tool-btn active" data-tool="particle" title="Создать частицы">⚛️</button>
+        <button class="tool-btn" data-tool="attractor" title="Притяжение">🧲</button>
+        <button class="tool-btn" data-tool="repulsor" title="Отталкивание">💫</button>
+        <button class="tool-btn" data-tool="vortex" title="Вихрь">🌀</button>
+        <button class="tool-btn" data-tool="clear" title="Очистить">🗑️</button>
+      </div>
+
+      <div class="stats">
+        <div class="stats-title">Статистика</div>
+        <div class="stats-item">
+          <span>Частицы:</span>
+          <span class="stats-value" id="particle-count">0</span>
+        </div>
+        <div class="stats-item">
+          <span>FPS:</span>
+          <span class="stats-value" id="fps">60</span>
+        </div>
+        <div class="stats-item">
+          <span>Поля:</span>
+          <span class="stats-value" id="field-count">0</span>
+        </div>
+      </div>
+
+      <div class="info-panel visible">
+        <div class="info-title">Добро пожаловать!</div>
+        <div class="info-text">
+          Кликайте для создания частиц. Используйте инструменты для создания силовых полей.
+          Наблюдайте за эмергентным поведением системы.
+        </div>
+      </div>
+
+      <div class="controls-panel">
+        <div class="control-group">
+          <label class="control-label">Гравитация</label>
+          <input type="range" class="control-slider" id="gravity" min="0" max="200" value="50" />
+        </div>
+        <div class="control-group">
+          <label class="control-label">Трение</label>
+          <input type="range" class="control-slider" id="friction" min="90" max="100" value="98" />
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.ts"></script>
 </body>
 </html>
