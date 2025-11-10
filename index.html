@@ -271,6 +271,174 @@
       border: none;
     }
 
+    /* Progression panel */
+    .progression-panel {
+      position: absolute;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(15, 15, 25, 0.85);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(100, 200, 255, 0.2);
+      border-radius: 12px;
+      padding: 12px 20px;
+      min-width: 300px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    }
+
+    .level-display {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+
+    .level-badge {
+      font-size: 20px;
+      font-weight: 700;
+      color: rgba(100, 200, 255, 0.95);
+      min-width: 60px;
+    }
+
+    .xp-bar-container {
+      flex: 1;
+      height: 8px;
+      background: rgba(100, 200, 255, 0.1);
+      border-radius: 4px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .xp-bar {
+      height: 100%;
+      background: linear-gradient(90deg, rgba(100, 200, 255, 0.6), rgba(100, 200, 255, 0.9));
+      border-radius: 4px;
+      transition: width 0.3s ease;
+      box-shadow: 0 0 10px rgba(100, 200, 255, 0.5);
+    }
+
+    .xp-text {
+      font-size: 10px;
+      color: rgba(255, 255, 255, 0.6);
+      margin-top: 4px;
+      text-align: center;
+    }
+
+    .combo-display {
+      text-align: center;
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(100, 200, 255, 0.1);
+      font-size: 12px;
+      color: rgba(255, 200, 100, 0.9);
+      font-weight: 600;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .combo-display.active {
+      opacity: 1;
+    }
+
+    /* Particle type selector */
+    .particle-selector {
+      position: absolute;
+      left: 20px;
+      top: 90px;
+      background: rgba(15, 15, 25, 0.85);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(100, 200, 255, 0.2);
+      border-radius: 12px;
+      padding: 12px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    }
+
+    .particle-selector-title {
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.5);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+
+    .particle-types {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .particle-type-btn {
+      padding: 8px 12px;
+      border: 1px solid rgba(100, 200, 255, 0.2);
+      background: rgba(255, 255, 255, 0.05);
+      color: rgba(255, 255, 255, 0.7);
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 11px;
+      text-align: left;
+      transition: all 0.2s ease;
+    }
+
+    .particle-type-btn:hover:not(.locked) {
+      background: rgba(100, 200, 255, 0.15);
+      color: rgba(255, 255, 255, 0.95);
+      border-color: rgba(100, 200, 255, 0.4);
+    }
+
+    .particle-type-btn.active {
+      background: rgba(100, 200, 255, 0.25);
+      color: #fff;
+      border-color: rgba(100, 200, 255, 0.6);
+      box-shadow: 0 0 10px rgba(100, 200, 255, 0.3);
+    }
+
+    .particle-type-btn.locked {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .particle-type-btn .unlock-level {
+      font-size: 9px;
+      color: rgba(255, 200, 100, 0.7);
+    }
+
+    /* Achievement notification */
+    .achievement-notification {
+      position: fixed;
+      top: 100px;
+      right: 20px;
+      background: rgba(15, 15, 25, 0.95);
+      backdrop-filter: blur(10px);
+      border: 2px solid rgba(255, 215, 0, 0.5);
+      border-radius: 12px;
+      padding: 16px 20px;
+      max-width: 300px;
+      box-shadow: 0 8px 32px rgba(255, 215, 0, 0.2);
+      transform: translateX(400px);
+      transition: transform 0.4s ease;
+      z-index: 200;
+    }
+
+    .achievement-notification.show {
+      transform: translateX(0);
+    }
+
+    .achievement-icon {
+      font-size: 32px;
+      margin-bottom: 8px;
+    }
+
+    .achievement-title {
+      font-weight: 700;
+      color: rgba(255, 215, 0, 0.95);
+      margin-bottom: 4px;
+    }
+
+    .achievement-description {
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.7);
+    }
+
     /* Responsive */
     @media (max-width: 768px) {
       .toolbar {
@@ -293,6 +461,23 @@
       .controls-panel {
         flex-direction: column;
       }
+
+      .progression-panel {
+        top: 10px;
+        min-width: 250px;
+        padding: 10px 16px;
+      }
+
+      .particle-selector {
+        left: 10px;
+        top: 70px;
+      }
+
+      .achievement-notification {
+        right: 10px;
+        top: 80px;
+        max-width: 250px;
+      }
     }
   </style>
 </head>
@@ -308,6 +493,19 @@
     <canvas id="canvas"></canvas>
 
     <div id="ui">
+      <!-- Progression panel -->
+      <div class="progression-panel">
+        <div class="level-display">
+          <div class="level-badge">Ур. <span id="level">1</span></div>
+          <div class="xp-bar-container">
+            <div class="xp-bar" id="xp-bar" style="width: 0%"></div>
+          </div>
+        </div>
+        <div class="xp-text" id="xp-text">0 / 100 XP</div>
+        <div class="combo-display" id="combo-display">Комбо: x1</div>
+      </div>
+
+      <!-- Toolbar -->
       <div class="toolbar">
         <button class="tool-btn active" data-tool="particle" title="Создать частицы">⚛️</button>
         <button class="tool-btn" data-tool="attractor" title="Притяжение">🧲</button>
@@ -316,6 +514,20 @@
         <button class="tool-btn" data-tool="clear" title="Очистить">🗑️</button>
       </div>
 
+      <!-- Particle type selector -->
+      <div class="particle-selector">
+        <div class="particle-selector-title">Тип частиц</div>
+        <div class="particle-types">
+          <button class="particle-type-btn active" data-type="standard">⚛️ Стандарт</button>
+          <button class="particle-type-btn locked" data-type="energy">⚡ Энергия <span class="unlock-level">(Ур. 3)</span></button>
+          <button class="particle-type-btn locked" data-type="quantum">🌌 Квант <span class="unlock-level">(Ур. 5)</span></button>
+          <button class="particle-type-btn locked" data-type="plasma">🔥 Плазма <span class="unlock-level">(Ур. 8)</span></button>
+          <button class="particle-type-btn locked" data-type="cosmic">✨ Космос <span class="unlock-level">(Ур. 12)</span></button>
+          <button class="particle-type-btn locked" data-type="nebula">🌠 Туманность <span class="unlock-level">(Ур. 15)</span></button>
+        </div>
+      </div>
+
+      <!-- Stats -->
       <div class="stats">
         <div class="stats-title">Статистика</div>
         <div class="stats-item">
@@ -330,6 +542,13 @@
           <span>Поля:</span>
           <span class="stats-value" id="field-count">0</span>
         </div>
+      </div>
+
+      <!-- Achievement notification (hidden by default) -->
+      <div class="achievement-notification" id="achievement-notification">
+        <div class="achievement-icon" id="achievement-icon">🏆</div>
+        <div class="achievement-title" id="achievement-title">Достижение разблокировано!</div>
+        <div class="achievement-description" id="achievement-description"></div>
       </div>
 
       <div class="info-panel visible">

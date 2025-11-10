@@ -3,17 +3,20 @@
  */
 
 import type { GameConfig, GameState, ForceField, ForceFieldType, ToolType, Vector2 } from '../types';
+import type { ParticleType } from '../types/progression';
 import { Engine } from './Engine';
 import { EventBus } from './EventBus';
 import { ParticleSystem } from '../physics/ParticleSystem';
-import { Renderer } from '../rendering/Renderer';
+import { EnhancedRenderer } from '../rendering/EnhancedRenderer';
+import { ProgressionSystem } from './ProgressionSystem';
 import { hsl } from '../utils/math';
 
 export class Game {
   private engine: Engine;
   private eventBus: EventBus;
   private particleSystem: ParticleSystem;
-  private renderer: Renderer;
+  private renderer: EnhancedRenderer;
+  private progression: ProgressionSystem;
   private state: GameState;
   private canvas: HTMLCanvasElement;
 
@@ -22,6 +25,10 @@ export class Game {
   private mousePosition: Vector2 | null = null;
   private isMouseDown: boolean = false;
   private particleSpawnTimer: number = 0;
+  private gameTime: number = 0;
+
+  // Particle type selection
+  private currentParticleType: ParticleType = 'standard';
 
   // Event listener tracking for cleanup
   private eventListeners: Array<{
@@ -37,7 +44,8 @@ export class Game {
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
     this.eventBus = new EventBus();
-    this.renderer = new Renderer(canvas);
+    this.renderer = new EnhancedRenderer(canvas);
+    this.progression = new ProgressionSystem();
 
     const dims = this.renderer.getDimensions();
 
@@ -90,10 +98,17 @@ export class Game {
   private update(dt: number): void {
     if (this.state.isPaused) return;
 
+    // Update game time
+    this.gameTime += dt;
+
     // Handle mouse input
+    let particleCreatedThisFrame = false;
     if (this.isMouseDown && this.mousePosition) {
-      this.handleToolAction(this.mousePosition, dt);
+      particleCreatedThisFrame = this.handleToolAction(this.mousePosition, dt);
     }
+
+    // Update progression system
+    this.progression.updateCombo(dt, particleCreatedThisFrame);
 
     // Update particles
     this.particleSystem.update(dt, this.fields);
@@ -106,29 +121,48 @@ export class Game {
 
     // Emit update event
     this.eventBus.emit('update', this.state);
+    this.eventBus.emit('progression', this.progression.getProgress());
   }
 
   /**
    * Render game
    */
   private render(): void {
-    this.renderer.clear(0.15);
+    this.renderer.clear(0.12, this.gameTime);
+    this.renderer.updateAndRenderEffects(1/60); // Fixed timestep for effects
     this.renderer.renderConnections(this.state.particles, 80);
-    this.renderer.renderTrails(this.state.particles);
+    this.renderer.renderTrails(this.state.particles, this.currentParticleType);
     this.renderer.renderFields(this.fields);
-    this.renderer.renderParticles(this.state.particles);
+    this.renderer.renderParticles(this.state.particles, this.currentParticleType);
   }
 
   /**
    * Handle tool actions
+   * @returns true if a particle was created this frame
    */
-  private handleToolAction(position: Vector2, dt: number): void {
+  private handleToolAction(position: Vector2, dt: number): boolean {
+    let particleCreated = false;
+
     switch (this.state.activeTool) {
       case 'particle':
         this.particleSpawnTimer += dt;
         if (this.particleSpawnTimer >= 0.03) {
           this.particleSystem.createParticle(position);
+          this.progression.onParticleCreated();
           this.particleSpawnTimer = 0;
+          particleCreated = true;
+
+          // Add spark effect at creation
+          this.renderer.addEffect({
+            id: `spark_${Date.now()}_${Math.random()}`,
+            type: 'spark',
+            position: { ...position },
+            lifetime: 0,
+            maxLifetime: 0.3,
+            radius: 5,
+            color: hsl(200, 80, 70),
+            intensity: 0.8
+          });
         }
         break;
 
@@ -142,6 +176,8 @@ export class Game {
         // Clear is handled immediately
         break;
     }
+
+    return particleCreated;
   }
 
   /**
@@ -172,6 +208,21 @@ export class Game {
     };
 
     this.fields.push(field);
+
+    // Track field creation for progression
+    this.progression.onFieldPlaced();
+
+    // Add ripple effect
+    this.renderer.addEffect({
+      id: `ripple_${Date.now()}_${Math.random()}`,
+      type: 'ripple',
+      position: { ...position },
+      lifetime: 0,
+      maxLifetime: 0.8,
+      radius: 30,
+      color: colors[type],
+      intensity: 0.7
+    });
   }
 
   /**
@@ -349,5 +400,43 @@ export class Game {
    */
   getState(): GameState {
     return this.state;
+  }
+
+  /**
+   * Get progression info
+   */
+  getProgression() {
+    return this.progression.getProgress();
+  }
+
+  /**
+   * Set particle type
+   */
+  setParticleType(type: ParticleType): void {
+    const unlocked = this.progression.getProgress().unlockedParticleTypes;
+    if (unlocked.includes(type)) {
+      this.currentParticleType = type;
+
+      // Add visual feedback
+      this.renderer.addEffect({
+        id: `type_change_${Date.now()}`,
+        type: 'explosion',
+        position: { x: this.renderer.getDimensions().width / 2, y: this.renderer.getDimensions().height / 2 },
+        lifetime: 0,
+        maxLifetime: 0.5,
+        radius: 50,
+        color: hsl(200, 80, 70),
+        intensity: 0.6
+      });
+    } else {
+      console.warn(`Particle type ${type} is not unlocked yet`);
+    }
+  }
+
+  /**
+   * Get current particle type
+   */
+  getCurrentParticleType(): ParticleType {
+    return this.currentParticleType;
   }
 }

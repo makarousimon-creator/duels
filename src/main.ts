@@ -121,6 +121,27 @@ class App {
       }
     });
 
+    // Update progression UI
+    this.game.on('progression', (progress) => {
+      this.updateProgressionUI(progress);
+    });
+
+    // Particle type selector
+    const particleTypeButtons = document.querySelectorAll('.particle-type-btn');
+    particleTypeButtons.forEach(button => {
+      button.addEventListener('click', () => {
+        const type = (button as HTMLElement).dataset.type;
+        if (!type || button.classList.contains('locked')) return;
+
+        // Update active state
+        particleTypeButtons.forEach(btn => btn.classList.remove('active'));
+        button.classList.add('active');
+
+        // Set particle type
+        this.game?.setParticleType(type as any);
+      });
+    });
+
     // Keyboard shortcuts
     document.addEventListener('keydown', (e) => {
       switch (e.key) {
@@ -158,6 +179,82 @@ class App {
       }
     });
     this.game?.setTool(tool);
+  }
+
+  private updateProgressionUI(progress: any): void {
+    // Update level
+    const levelElement = document.getElementById('level');
+    if (levelElement) {
+      levelElement.textContent = progress.level.toString();
+    }
+
+    // Update XP bar
+    const xpBar = document.getElementById('xp-bar');
+    const xpText = document.getElementById('xp-text');
+    if (xpBar && xpText) {
+      const xpPercent = (progress.experience / progress.experienceToNext) * 100;
+      xpBar.style.width = `${xpPercent}%`;
+      xpText.textContent = `${progress.experience} / ${progress.experienceToNext} XP`;
+    }
+
+    // Update combo display
+    const comboDisplay = document.getElementById('combo-display');
+    if (comboDisplay) {
+      const combo = progress.currentCombo || 0;
+      const multiplier = progress.multiplier || 1;
+
+      if (combo > 1) {
+        comboDisplay.textContent = `Комбо: ${combo}x  ×${multiplier.toFixed(1)} XP`;
+        comboDisplay.classList.add('active');
+      } else {
+        comboDisplay.classList.remove('active');
+      }
+    }
+
+    // Update unlocked particle types
+    const particleTypeButtons = document.querySelectorAll('.particle-type-btn');
+    particleTypeButtons.forEach(button => {
+      const type = (button as HTMLElement).dataset.type;
+      if (!type) return;
+
+      if (progress.unlockedParticleTypes.includes(type)) {
+        button.classList.remove('locked');
+      }
+    });
+
+    // Check for new achievements
+    const newAchievements = progress.achievements.filter(
+      (a: any) => a.unlocked && !a.notified
+    );
+
+    if (newAchievements.length > 0) {
+      this.showAchievementNotification(newAchievements[0]);
+    }
+  }
+
+  private showAchievementNotification(achievement: any): void {
+    const notification = document.getElementById('achievement-notification');
+    const icon = document.getElementById('achievement-icon');
+    const title = document.getElementById('achievement-title');
+    const description = document.getElementById('achievement-description');
+
+    if (!notification || !icon || !title || !description) return;
+
+    // Set content
+    icon.textContent = achievement.icon;
+    title.textContent = achievement.name;
+    description.textContent = achievement.description;
+
+    // Show notification
+    notification.classList.add('show');
+
+    // Hide after 4 seconds
+    setTimeout(() => {
+      notification.classList.remove('show');
+    }, 4000);
+
+    // Mark as notified (in memory only, not persisted)
+    achievement.notified = true;
   }
 
   private showError(error: Error): void {
