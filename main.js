@@ -31,6 +31,8 @@ const overlayTextStyle = {
   shadowBlur: 10,
 };
 
+const wrapPadding = 2;
+
 const state = {
   points: [],
   totalLength: 0,
@@ -318,23 +320,79 @@ function update(dt) {
   checkSelfIntersection(newHead);
 }
 
+function wrapSpanX() {
+  return state.viewportWidth + wrapPadding * 2;
+}
+
+function wrapSpanY() {
+  return state.viewportHeight + wrapPadding * 2;
+}
+
 function wrapPosition(point) {
-  const padding = 2;
   const width = state.viewportWidth;
   const height = state.viewportHeight;
+  const spanX = wrapSpanX();
+  const spanY = wrapSpanY();
 
-  if (point.x < -padding) point.x = width + padding;
-  if (point.x > width + padding) point.x = -padding;
-  if (point.y < -padding) point.y = height + padding;
-  if (point.y > height + padding) point.y = -padding;
+  while (point.x < -wrapPadding) point.x += spanX;
+  while (point.x > width + wrapPadding) point.x -= spanX;
+  while (point.y < -wrapPadding) point.y += spanY;
+  while (point.y > height + wrapPadding) point.y -= spanY;
+}
+
+function normalizeWrappedPoint(point) {
+  const spanX = wrapSpanX();
+  const spanY = wrapSpanY();
+  let x = point.x + wrapPadding;
+  let y = point.y + wrapPadding;
+
+  x = ((x % spanX) + spanX) % spanX;
+  y = ((y % spanY) + spanY) % spanY;
+
+  return { x: x - wrapPadding, y: y - wrapPadding };
+}
+
+function torusDelta(start, end) {
+  const spanX = wrapSpanX();
+  const spanY = wrapSpanY();
+  let dx = end.x - start.x;
+  let dy = end.y - start.y;
+
+  if (Math.abs(dx) > state.viewportWidth / 2) {
+    dx -= Math.sign(dx) * spanX;
+  }
+
+  if (Math.abs(dy) > state.viewportHeight / 2) {
+    dy -= Math.sign(dy) * spanY;
+  }
+
+  return { dx, dy };
+}
+
+function torusLength(start, end) {
+  const { dx, dy } = torusDelta(start, end);
+  return Math.hypot(dx, dy);
+}
+
+function torusLerp(start, end, t) {
+  const { dx, dy } = torusDelta(start, end);
+  return normalizeWrappedPoint({
+    x: start.x + dx * t,
+    y: start.y + dy * t,
+  });
 }
 
 function trimTail() {
   while (state.totalLength > state.targetLength && state.points.length > 1) {
     const tail = state.points[state.points.length - 1];
     const beforeTail = state.points[state.points.length - 2];
-    const segLen = Math.hypot(tail.x - beforeTail.x, tail.y - beforeTail.y);
+    const segLen = torusLength(beforeTail, tail);
     const excess = state.totalLength - state.targetLength;
+
+    if (segLen === 0) {
+      state.points.pop();
+      continue;
+    }
 
     if (excess >= segLen) {
       state.points.pop();
@@ -344,8 +402,9 @@ function trimTail() {
 
     const keep = segLen - excess;
     const ratio = keep / segLen;
-    tail.x = beforeTail.x + (tail.x - beforeTail.x) * ratio;
-    tail.y = beforeTail.y + (tail.y - beforeTail.y) * ratio;
+    const nextPoint = torusLerp(beforeTail, tail, ratio);
+    tail.x = nextPoint.x;
+    tail.y = nextPoint.y;
     state.totalLength -= excess;
     break;
   }
@@ -368,7 +427,7 @@ function checkSelfIntersection(head) {
   for (let i = 6; i < state.points.length - 2; i += 1) {
     const start = state.points[i];
     const end = state.points[i + 1];
-    if (pointToSegmentDistance(head, start, end) < threshold) {
+    if (torusPointToSegmentDistance(head, start, end) < threshold) {
       intersecting = true;
       break;
     }
@@ -386,7 +445,38 @@ function checkSelfIntersection(head) {
   }
 }
 
-function pointToSegmentDistance(point, start, end) {
+function torusPointToSegmentDistance(point, start, end) {
+  const spanX = wrapSpanX();
+  const spanY = wrapSpanY();
+  const { dx, dy } = torusDelta(start, end);
+  const projectedEnd = { x: start.x + dx, y: start.y + dy };
+  let minDistance = Infinity;
+
+  for (let offsetX of [-spanX, 0, spanX]) {
+    for (let offsetY of [-spanY, 0, spanY]) {
+      const shiftedStart = {
+        x: start.x + offsetX,
+        y: start.y + offsetY,
+      };
+      const shiftedEnd = {
+        x: projectedEnd.x + offsetX,
+        y: projectedEnd.y + offsetY,
+      };
+      const distance = euclideanPointToSegmentDistance(
+        point,
+        shiftedStart,
+        shiftedEnd
+      );
+      if (distance < minDistance) {
+        minDistance = distance;
+      }
+    }
+  }
+
+  return minDistance;
+}
+
+function euclideanPointToSegmentDistance(point, start, end) {
   const vx = end.x - start.x;
   const vy = end.y - start.y;
   if (vx === 0 && vy === 0) {
@@ -461,7 +551,52 @@ function drawSnake() {
   ctx.moveTo(head.x, head.y);
   for (let i = 1; i < state.points.length; i += 1) {
     const point = state.points[i];
+    const prev = state.points[i - 1];
+    const crossesX =
+      Math.abs(point.x - prev.x) > state.viewportWidth / 2;
+    const crossesY =
+      Math.abs(point.y - prev.y) > state.viewportHeight / 2;
+
+    if (!crossesX && !crossesY) {
+      ctx.lineTo(point.x, point.y);
+      continue;
+    }
+
+    const { dx, dy } = torusDelta(prev, point);
+
+    if (crossesX) {
+      const movingRight = dx > 0;
+      const boundaryX = movingRight
+        ? state.viewportWidth + wrapPadding
+        : -wrapPadding;
+      const distanceToBoundary = movingRight
+        ? boundaryX - prev.x
+        : prev.x - boundaryX;
+      const t = distanceToBoundary / Math.abs(dx || 1);
+      const exitY = prev.y + dy * Math.min(Math.max(t, 0), 1);
+      const entryX = movingRight ? -wrapPadding : state.viewportWidth + wrapPadding;
+      const entryY = exitY;
+      ctx.lineTo(boundaryX, exitY);
+      ctx.moveTo(entryX, entryY);
+      ctx.lineTo(point.x, point.y);
+      continue;
+    }
+
+    const movingDown = dy > 0;
+    const boundaryY = movingDown
+      ? state.viewportHeight + wrapPadding
+      : -wrapPadding;
+    const distanceToBoundary = movingDown
+      ? boundaryY - prev.y
+      : prev.y - boundaryY;
+    const t = distanceToBoundary / Math.abs(dy || 1);
+    const exitX = prev.x + dx * Math.min(Math.max(t, 0), 1);
+    const entryY = movingDown ? -wrapPadding : state.viewportHeight + wrapPadding;
+    const entryX = exitX;
+    ctx.lineTo(exitX, boundaryY);
+    ctx.moveTo(entryX, entryY);
     ctx.lineTo(point.x, point.y);
+    continue;
   }
   ctx.stroke();
   ctx.restore();
