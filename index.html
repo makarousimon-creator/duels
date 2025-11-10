@@ -7,6 +7,17 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+  <div class="hud" role="complementary" aria-live="polite">
+    <h2 class="hud__title">Как играть</h2>
+    <p class="hud__goal">
+      Направляйте поток света, собирайте сферу энергии и избегайте столкновений с собственным следом.
+    </p>
+    <ul class="hud__controls">
+      <li><strong>Desktop:</strong> стрелки или WASD.</li>
+      <li><strong>Сенсор:</strong> свайп по экрану.</li>
+      <li><strong>Мобильные стрелки:</strong> кнопки ниже канваса.</li>
+    </ul>
+  </div>
   <canvas id="game"></canvas>
   <div class="controls" aria-hidden="true">
     <button class="arrow" data-dir="up">▲</button>
