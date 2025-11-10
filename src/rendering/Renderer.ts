@@ -1,5 +1,5 @@
 /**
- * Advanced Canvas renderer with visual effects
+ * Advanced Canvas renderer with visual effects (optimized)
  */
 
 import type { Particle, ForceField } from '../types';
@@ -10,6 +10,10 @@ export class Renderer {
   private width: number;
   private height: number;
   private dpr: number;
+
+  // Performance: Cache gradients to avoid recreation every frame
+  private gradientCache: Map<string, CanvasGradient> = new Map();
+  private readonly MAX_CACHED_GRADIENTS = 100;
 
   constructor(canvas: HTMLCanvasElement) {
     const ctx = canvas.getContext('2d', { alpha: false });
@@ -37,6 +41,9 @@ export class Renderer {
     canvas.height = Math.round(this.height * this.dpr);
 
     this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+
+    // Clear gradient cache on resize
+    this.gradientCache.clear();
   }
 
   /**
@@ -48,44 +55,85 @@ export class Renderer {
   }
 
   /**
-   * Render all particles with glow effects
+   * Parse HSL color string to components (performance optimization)
+   */
+  private parseHSL(color: string): { h: number; s: number; l: number; a: number } | null {
+    const match = color.match(/hsla?\((\d+),\s*(\d+)%,\s*(\d+)%(?:,\s*([\d.]+))?\)/);
+    if (!match) return null;
+    return {
+      h: parseInt(match[1]),
+      s: parseInt(match[2]),
+      l: parseInt(match[3]),
+      a: match[4] ? parseFloat(match[4]) : 1
+    };
+  }
+
+  /**
+   * Get cached or create gradient (performance optimization)
+   */
+  private getGradient(
+    radius: number,
+    colorKey: string
+  ): CanvasGradient {
+    const cacheKey = `${colorKey}_${radius}`;
+
+    // Clear cache if too large
+    if (this.gradientCache.size > this.MAX_CACHED_GRADIENTS) {
+      this.gradientCache.clear();
+    }
+
+    let gradient = this.gradientCache.get(cacheKey);
+    if (!gradient) {
+      gradient = this.ctx.createRadialGradient(0, 0, 0, 0, 0, radius);
+      const parsed = this.parseHSL(colorKey);
+
+      if (parsed) {
+        gradient.addColorStop(0, `hsla(${parsed.h}, ${parsed.s}%, ${parsed.l}%, 1)`);
+        gradient.addColorStop(0.4, `hsla(${parsed.h}, ${parsed.s}%, ${parsed.l}%, 0.6)`);
+        gradient.addColorStop(1, `hsla(${parsed.h}, ${parsed.s}%, ${parsed.l}%, 0)`);
+      } else {
+        // Fallback
+        gradient.addColorStop(0, colorKey);
+        gradient.addColorStop(1, 'rgba(0,0,0,0)');
+      }
+
+      this.gradientCache.set(cacheKey, gradient);
+    }
+
+    return gradient;
+  }
+
+  /**
+   * Render all particles with glow effects (optimized)
    */
   renderParticles(particles: Particle[]): void {
+    this.ctx.save();
+    this.ctx.globalCompositeOperation = 'lighter';
+
     for (const particle of particles) {
       const lifeRatio = particle.life / particle.maxLife;
       const alpha = Math.min(lifeRatio, 1);
 
-      // Outer glow
+      // Parse color once
+      const parsed = this.parseHSL(particle.color);
+      if (!parsed) continue;
+
+      const glowRadius = particle.radius * 3;
+
+      // Outer glow with cached gradient
       this.ctx.save();
-      this.ctx.globalCompositeOperation = 'lighter';
+      this.ctx.globalAlpha = alpha;
+      this.ctx.translate(particle.position.x, particle.position.y);
 
-      const gradient = this.ctx.createRadialGradient(
-        particle.position.x,
-        particle.position.y,
-        0,
-        particle.position.x,
-        particle.position.y,
-        particle.radius * 3
-      );
-
-      const color = particle.color;
-      gradient.addColorStop(0, color.replace(/[\d.]+\)$/g, `${alpha})`));
-      gradient.addColorStop(0.4, color.replace(/[\d.]+\)$/g, `${alpha * 0.6})`));
-      gradient.addColorStop(1, color.replace(/[\d.]+\)$/g, '0)'));
-
+      const gradient = this.getGradient(glowRadius, particle.color);
       this.ctx.fillStyle = gradient;
       this.ctx.beginPath();
-      this.ctx.arc(
-        particle.position.x,
-        particle.position.y,
-        particle.radius * 3,
-        0,
-        Math.PI * 2
-      );
+      this.ctx.arc(0, 0, glowRadius, 0, Math.PI * 2);
       this.ctx.fill();
+      this.ctx.restore();
 
-      // Core particle
-      this.ctx.fillStyle = color.replace(/[\d.]+\)$/g, `${alpha})`);
+      // Core particle (optimized color string)
+      this.ctx.fillStyle = `hsla(${parsed.h}, ${parsed.s}%, ${parsed.l}%, ${alpha})`;
       this.ctx.beginPath();
       this.ctx.arc(
         particle.position.x,
@@ -95,13 +143,13 @@ export class Renderer {
         Math.PI * 2
       );
       this.ctx.fill();
-
-      this.ctx.restore();
     }
+
+    this.ctx.restore();
   }
 
   /**
-   * Render particle trails
+   * Render particle trails (optimized)
    */
   renderTrails(particles: Particle[]): void {
     this.ctx.save();
@@ -112,7 +160,10 @@ export class Renderer {
       const lifeRatio = particle.life / particle.maxLife;
       const alpha = Math.min(lifeRatio * 0.5, 0.5);
 
-      this.ctx.strokeStyle = particle.color.replace(/[\d.]+\)$/g, `${alpha})`);
+      const parsed = this.parseHSL(particle.color);
+      if (!parsed) continue;
+
+      this.ctx.strokeStyle = `hsla(${parsed.h}, ${parsed.s}%, ${parsed.l}%, ${alpha})`;
       this.ctx.lineWidth = particle.radius * 0.5;
 
       this.ctx.beginPath();
@@ -144,10 +195,12 @@ export class Renderer {
         field.radius
       );
 
-      const color = field.color;
-      gradient.addColorStop(0, color.replace(/[\d.]+\)$/g, '0.3)'));
-      gradient.addColorStop(0.7, color.replace(/[\d.]+\)$/g, '0.1)'));
-      gradient.addColorStop(1, color.replace(/[\d.]+\)$/g, '0)'));
+      const parsed = this.parseHSL(field.color);
+      if (parsed) {
+        gradient.addColorStop(0, `hsla(${parsed.h}, ${parsed.s}%, ${parsed.l}%, 0.3)`);
+        gradient.addColorStop(0.7, `hsla(${parsed.h}, ${parsed.s}%, ${parsed.l}%, 0.1)`);
+        gradient.addColorStop(1, `hsla(${parsed.h}, ${parsed.s}%, ${parsed.l}%, 0)`);
+      }
 
       this.ctx.fillStyle = gradient;
       this.ctx.beginPath();
@@ -155,13 +208,13 @@ export class Renderer {
       this.ctx.fill();
 
       // Core
-      this.ctx.fillStyle = color;
+      this.ctx.fillStyle = field.color;
       this.ctx.beginPath();
       this.ctx.arc(field.position.x, field.position.y, 8, 0, Math.PI * 2);
       this.ctx.fill();
 
       // Ring
-      this.ctx.strokeStyle = color;
+      this.ctx.strokeStyle = field.color;
       this.ctx.lineWidth = 2;
       this.ctx.beginPath();
       this.ctx.arc(field.position.x, field.position.y, 12, 0, Math.PI * 2);
@@ -172,10 +225,11 @@ export class Renderer {
   }
 
   /**
-   * Render connection lines between nearby particles
+   * Render connection lines between nearby particles (optimized with limit)
    */
   renderConnections(particles: Particle[], maxDistance: number = 100): void {
-    if (particles.length > 200) return; // Performance limit
+    // Performance limit: disable for large particle counts
+    if (particles.length > 200) return;
 
     this.ctx.save();
     this.ctx.globalCompositeOperation = 'lighter';

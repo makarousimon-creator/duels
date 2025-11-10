@@ -1,0 +1,18 @@
+--- src/core/Game.ts
++++ src/core/Game.ts
+@@ -177,12 +177,12 @@ export class Game {
+   /**
+    * Add tracked event listener for cleanup
+    */
+   private addListener<K extends keyof HTMLElementEventMap>(
+     target: HTMLElement | Window,
+     type: K | string,
+-    handler: EventListener,
++    handler: any,
+     options?: AddEventListenerOptions
+   ): void {
+-    target.addEventListener(type as string, handler, options);
+-    this.eventListeners.push({ target, type: type as string, handler, options });
++    target.addEventListener(type as string, handler as EventListener, options);
++    this.eventListeners.push({ target, type: type as string, handler: handler as EventListener, options });
+   }
