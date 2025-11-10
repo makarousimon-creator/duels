@@ -183,7 +183,7 @@ export class Game {
     handler: EventListener,
     options?: AddEventListenerOptions
   ): void {
-    target.addEventListener(type as string, handler as EventListener, options);
+    target.addEventListener(type as string, handler, options);
     this.eventListeners.push({ target, type: type as string, handler, options });
   }
 
@@ -191,7 +191,7 @@ export class Game {
    * Set up input handling
    */
   private setupInput(): void {
-    this.addListener(this.canvas, 'mousedown', (e: any) => {
+    this.addListener(this.canvas, 'mousedown', (e: MouseEvent) => {
       this.isMouseDown = true;
       const rect = this.canvas.getBoundingClientRect();
       const x = e.clientX - rect.left;
@@ -209,7 +209,7 @@ export class Game {
       this.particleSpawnTimer = 0;
     });
 
-    this.addListener(this.canvas, 'mousemove', (e: any) => {
+    this.addListener(this.canvas, 'mousemove', (e: MouseEvent) => {
       const rect = this.canvas.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
@@ -222,7 +222,7 @@ export class Game {
     });
 
     // Touch support
-    this.addListener(this.canvas, 'touchstart', (e: any) => {
+    this.addListener(this.canvas, 'touchstart', (e: MouseEvent) => {
       e.preventDefault();
       const touch = e.touches[0];
       const rect = this.canvas.getBoundingClientRect();
@@ -236,13 +236,13 @@ export class Game {
       }
     }, { passive: false });
 
-    this.addListener(this.canvas, 'touchend', (e: any) => {
+    this.addListener(this.canvas, 'touchend', (e: MouseEvent) => {
       e.preventDefault();
       this.isMouseDown = false;
       this.particleSpawnTimer = 0;
     });
 
-    this.addListener(this.canvas, 'touchmove', (e: any) => {
+    this.addListener(this.canvas, 'touchmove', (e: MouseEvent) => {
       e.preventDefault();
       const touch = e.touches[0];
       const rect = this.canvas.getBoundingClientRect();

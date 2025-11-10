@@ -23,8 +23,9 @@ export class ParticleSystem {
    */
   createParticle(position: Vector2, velocity?: Vector2): Particle {
     if (this.particles.length >= this.config.maxParticles) {
-      // Remove oldest particle
-      this.particles.shift();
+      // Remove oldest particle efficiently from end
+      // (shift() is O(n), pop() is O(1))
+      this.particles.pop();
     }
 
     const vel = velocity || Vec2.create(random(-2, 2), random(-2, 2));
@@ -77,8 +78,10 @@ export class ParticleSystem {
 
       particle.oldPosition = pos;
 
-      // Update velocity for external use
-      particle.velocity = Vec2.mult(velocity, 1 / dt);
+      // Update velocity for external use (with safety check)
+      if (dt > 0.0001) {
+        particle.velocity = Vec2.mult(velocity, 1 / dt);
+      }
 
       // Apply constraints (bounce off walls)
       this.applyConstraints(particle);
