@@ -1,9 +1,12 @@
-const canvas = document.getElementById("game");
-const ctx = canvas.getContext("2d");
-const hud = document.querySelector(".hud");
+// DOM elements - initialized after DOMContentLoaded
+let canvas = null;
+let ctx = null;
+let hud = null;
 
+// Timers and state
 let hudHideTimer = null;
 let hudDismissed = false;
+let eventListeners = [];
 
 const config = {
   speed: 120,
@@ -14,6 +17,14 @@ const config = {
   fadeDuration: 1.5,
   respawnDelay: 2,
   intersectionCooldown: 0.8,
+  // Collision detection parameters
+  collisionThreshold: 8,
+  collisionSkipPoints: 6,
+  // Food spawn parameters
+  foodSpawnPaddingMin: 40,
+  foodSpawnPaddingMax: 80,
+  foodSpawnPaddingRatio: 0.1,
+  foodPickupRadius: 20,
 };
 
 const overlayTextStyle = {
@@ -51,7 +62,52 @@ const state = {
   viewportHeight: window.innerHeight,
 };
 
+/**
+ * Initialize DOM elements with error handling
+ * @throws {Error} If required DOM elements are not found
+ */
+function initDOMElements() {
+  canvas = document.getElementById("game");
+  if (!canvas) {
+    throw new Error("Canvas element with id='game' not found");
+  }
+
+  ctx = canvas.getContext("2d");
+  if (!ctx) {
+    throw new Error("Canvas 2D context not supported by browser");
+  }
+
+  hud = document.querySelector(".hud");
+  // HUD is optional, so no error if not found
+}
+
+/**
+ * Cleanup all timers and event listeners
+ */
+function cleanup() {
+  // Clear HUD timer
+  if (hudHideTimer) {
+    clearTimeout(hudHideTimer);
+    hudHideTimer = null;
+  }
+
+  // Remove all event listeners
+  eventListeners.forEach(({ target, event, handler, options }) => {
+    target.removeEventListener(event, handler, options);
+  });
+  eventListeners.length = 0;
+}
+
+/**
+ * Add event listener with tracking for cleanup
+ */
+function addTrackedListener(target, event, handler, options) {
+  target.addEventListener(event, handler, options);
+  eventListeners.push({ target, event, handler, options });
+}
+
 function resize() {
+  if (!canvas || !ctx) return;
   const dpr = window.devicePixelRatio || 1;
   const rect = canvas.getBoundingClientRect();
   canvas.width = Math.round(rect.width * dpr);
@@ -62,12 +118,23 @@ function resize() {
 }
 
 function init() {
-  resize();
-  window.addEventListener("resize", resize);
-  setupInput();
-  resetSnake(true);
-  scheduleHudHide();
-  requestAnimationFrame(loop);
+  try {
+    initDOMElements();
+    resize();
+    addTrackedListener(window, "resize", resize);
+    addTrackedListener(window, "beforeunload", cleanup);
+    setupInput();
+    resetSnake(true);
+    scheduleHudHide();
+    requestAnimationFrame(loop);
+  } catch (error) {
+    console.error("Failed to initialize game:", error);
+    const errorMessage = document.createElement("div");
+    errorMessage.style.cssText = "position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(255,0,0,0.9);color:white;padding:20px;border-radius:10px;font-family:sans-serif;text-align:center;";
+    errorMessage.innerHTML = `<h2>Ошибка инициализации</h2><p>${error.message}</p><p>Попробуйте обновить страницу или использовать другой браузер.</p>`;
+    document.body.appendChild(errorMessage);
+    throw error;
+  }
 }
 
 function scheduleHudHide() {
@@ -127,19 +194,35 @@ function resetSnake(initial = false) {
   }
 }
 
+/**
+ * Spawn food at random position with adaptive padding
+ * @returns {{x: number, y: number}} Food coordinates
+ */
 function spawnFood() {
-  const padding = 80;
+  // Adaptive padding based on viewport size
+  const padding = Math.max(
+    config.foodSpawnPaddingMin,
+    Math.min(
+      config.foodSpawnPaddingMax,
+      state.viewportWidth * config.foodSpawnPaddingRatio
+    )
+  );
+
   const availableWidth = Math.max(state.viewportWidth - padding * 2, 0);
   const availableHeight = Math.max(state.viewportHeight - padding * 2, 0);
 
-  let x = padding + Math.random() * availableWidth;
-  let y = padding + Math.random() * availableHeight;
+  let x, y;
 
+  // Handle small viewports
   if (availableWidth === 0 || availableHeight === 0) {
     x = state.viewportWidth / 2;
     y = state.viewportHeight / 2;
+  } else {
+    x = padding + Math.random() * availableWidth;
+    y = padding + Math.random() * availableHeight;
   }
 
+  // Utility function for clamping values
   const clamp = (value, min, max) => Math.max(min, Math.min(value, max));
   const xMin = Math.min(padding, state.viewportWidth - padding);
   const xMax = Math.max(padding, state.viewportWidth - padding);
@@ -152,6 +235,9 @@ function spawnFood() {
   };
 }
 
+/**
+ * Setup all input handlers (keyboard, touch, buttons)
+ */
 function setupInput() {
   const keyMap = {
     ArrowUp: { x: 0, y: -1 },
@@ -164,52 +250,49 @@ function setupInput() {
     d: { x: 1, y: 0 },
   };
 
-  window.addEventListener("keydown", (event) => {
+  // Keyboard input
+  const handleKeydown = (event) => {
     const dir = keyMap[event.key];
     if (!dir) return;
     setDirection(dir);
-  });
+  };
+  addTrackedListener(window, "keydown", handleKeydown);
 
+  // Touch input
   let touchStart = null;
-  canvas.addEventListener(
-    "touchstart",
-    (event) => {
-      event.preventDefault();
-      const touch = event.changedTouches[0];
-      touchStart = { x: touch.clientX, y: touch.clientY };
-    },
-    { passive: false }
-  );
 
-  canvas.addEventListener(
-    "touchend",
-    (event) => {
-      event.preventDefault();
-      if (!touchStart) return;
-      const touch = event.changedTouches[0];
-      const dx = touch.clientX - touchStart.x;
-      const dy = touch.clientY - touchStart.y;
-      const magnitude = Math.hypot(dx, dy);
-      if (magnitude > 24) {
-        if (Math.abs(dx) > Math.abs(dy)) {
-          setDirection({ x: Math.sign(dx), y: 0 });
-        } else {
-          setDirection({ x: 0, y: Math.sign(dy) });
-        }
+  const handleTouchStart = (event) => {
+    event.preventDefault();
+    const touch = event.changedTouches[0];
+    touchStart = { x: touch.clientX, y: touch.clientY };
+  };
+
+  const handleTouchEnd = (event) => {
+    event.preventDefault();
+    if (!touchStart) return;
+    const touch = event.changedTouches[0];
+    const dx = touch.clientX - touchStart.x;
+    const dy = touch.clientY - touchStart.y;
+    const magnitude = Math.hypot(dx, dy);
+    if (magnitude > 24) {
+      if (Math.abs(dx) > Math.abs(dy)) {
+        setDirection({ x: Math.sign(dx), y: 0 });
+      } else {
+        setDirection({ x: 0, y: Math.sign(dy) });
       }
-      touchStart = null;
-    },
-    { passive: false }
-  );
+    }
+    touchStart = null;
+  };
 
-  canvas.addEventListener(
-    "touchmove",
-    (event) => {
-      event.preventDefault();
-    },
-    { passive: false }
-  );
+  const handleTouchMove = (event) => {
+    event.preventDefault();
+  };
 
+  addTrackedListener(canvas, "touchstart", handleTouchStart, { passive: false });
+  addTrackedListener(canvas, "touchend", handleTouchEnd, { passive: false });
+  addTrackedListener(canvas, "touchmove", handleTouchMove, { passive: false });
+
+  // Button input
   const buttonDirections = {
     up: { x: 0, y: -1 },
     down: { x: 0, y: 1 },
@@ -226,26 +309,45 @@ function setupInput() {
   };
 
   document.querySelectorAll(".arrow").forEach((button) => {
-    button.addEventListener("pointerdown", (event) => {
+    const handlePointerDown = (event) => {
       event.preventDefault();
       applyButtonDirection(button);
-    });
+    };
 
-    button.addEventListener("click", () => {
+    const handleClick = () => {
       applyButtonDirection(button);
-    });
+    };
 
-    button.addEventListener("keydown", (event) => {
+    const handleKeydown = (event) => {
       if (event.key === "Enter" || event.key === " " || event.key === "Spacebar") {
         event.preventDefault();
         applyButtonDirection(button);
       }
-    });
+    };
+
+    addTrackedListener(button, "pointerdown", handlePointerDown);
+    addTrackedListener(button, "click", handleClick);
+    addTrackedListener(button, "keydown", handleKeydown);
   });
 }
 
+/**
+ * Set direction with validation and reversal prevention
+ * @param {{x: number, y: number}} dir - Direction vector
+ */
 function setDirection(dir) {
-  if (!dir) return;
+  // Validate input
+  if (!dir || typeof dir.x !== "number" || typeof dir.y !== "number") {
+    console.warn("Invalid direction:", dir);
+    return;
+  }
+
+  // Validate that direction is a unit vector (or zero)
+  const magnitude = Math.abs(dir.x) + Math.abs(dir.y);
+  if (magnitude !== 0 && magnitude !== 1) {
+    console.warn("Direction must be a unit vector:", dir);
+    return;
+  }
 
   const isOpposite = (a, b) => a.x === -b.x && a.y === -b.y;
   const reversingPending = isOpposite(dir, state.pendingDirection);
@@ -351,24 +453,30 @@ function trimTail() {
   }
 }
 
+/**
+ * Check if player collected food
+ * @param {{x: number, y: number}} head - Player head position
+ */
 function checkFood(head) {
   if (!state.food) return;
   const distance = Math.hypot(head.x - state.food.x, head.y - state.food.y);
-  const pickupRadius = 20;
-  if (distance <= pickupRadius) {
+  if (distance <= config.foodPickupRadius) {
     state.targetLength += config.foodGrowth;
     state.brightness = Math.min(state.brightness + 0.18, config.maxBrightness);
     state.food = spawnFood();
   }
 }
 
+/**
+ * Check if player intersects with their own trail
+ * @param {{x: number, y: number}} head - Player head position
+ */
 function checkSelfIntersection(head) {
-  const threshold = 8;
   let intersecting = false;
-  for (let i = 6; i < state.points.length - 2; i += 1) {
+  for (let i = config.collisionSkipPoints; i < state.points.length - 2; i += 1) {
     const start = state.points[i];
     const end = state.points[i + 1];
-    if (pointToSegmentDistance(head, start, end) < threshold) {
+    if (pointToSegmentDistance(head, start, end) < config.collisionThreshold) {
       intersecting = true;
       break;
     }
@@ -534,8 +642,22 @@ function drawFadeOverlay() {
   ctx.restore();
 }
 
+/**
+ * Utility function to create HSL color strings
+ * @param {number} h - Hue (0-360)
+ * @param {number} s - Saturation (0-100)
+ * @param {number} l - Lightness (0-100)
+ * @param {number} a - Alpha (0-1)
+ * @returns {string} HSL color string
+ */
 function hsl(h, s, l, a = 1) {
   return `hsla(${h}, ${s}%, ${l}%, ${a})`;
 }
 
-init();
+// Initialize game after DOM is ready
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", init);
+} else {
+  // DOM already loaded
+  init();
+}
