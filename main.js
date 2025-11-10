@@ -16,6 +16,21 @@ const config = {
   intersectionCooldown: 0.8,
 };
 
+const overlayTextStyle = {
+  fontFamily: "'Inter', 'Segoe UI', sans-serif",
+  weight: 600,
+  subWeight: 400,
+  baseRatio: 0.07,
+  minSize: 22,
+  maxSize: 68,
+  secondaryScale: 0.6,
+  lineSpacing: 1.4,
+  primaryFill: "rgba(255, 255, 255, 0.95)",
+  secondaryFill: "rgba(210, 225, 255, 0.88)",
+  shadowColor: "rgba(5, 10, 25, 0.65)",
+  shadowBlur: 10,
+};
+
 const state = {
   points: [],
   totalLength: 0,
@@ -262,6 +277,7 @@ function update(dt) {
     if (state.fadeTimer >= config.fadeDuration) {
       state.mode = "wait";
       state.fadeTimer = config.fadeDuration;
+      state.waitTimer = 0;
     }
     return;
   }
@@ -365,6 +381,7 @@ function checkSelfIntersection(head) {
     if (state.intersections >= 3) {
       state.mode = "fade";
       state.fadeTimer = 0;
+      state.waitTimer = 0;
     }
   }
 }
@@ -461,11 +478,60 @@ function fadeMultiplier() {
 }
 
 function drawFadeOverlay() {
-  if (state.mode === "fade") {
-    const alpha = Math.min(state.fadeTimer / config.fadeDuration, 1);
-    ctx.fillStyle = `rgba(0, 0, 0, ${alpha * 0.8})`;
-    ctx.fillRect(0, 0, state.viewportWidth, state.viewportHeight);
+  if (state.mode !== "fade" && state.mode !== "wait") {
+    return;
   }
+
+  const fadeProgress = Math.min(state.fadeTimer / config.fadeDuration, 1);
+  const waitProgress = Math.min(state.waitTimer / config.respawnDelay, 1);
+  const overlayAlpha =
+    state.mode === "fade" ? 0.35 + fadeProgress * 0.45 : 0.78;
+
+  ctx.save();
+  ctx.fillStyle = `rgba(10, 10, 22, ${overlayAlpha})`;
+  ctx.fillRect(0, 0, state.viewportWidth, state.viewportHeight);
+
+  const minDimension = Math.min(state.viewportWidth, state.viewportHeight);
+  const baseFontSize = Math.max(
+    overlayTextStyle.minSize,
+    Math.min(
+      overlayTextStyle.maxSize,
+      minDimension * overlayTextStyle.baseRatio
+    )
+  );
+  const secondaryFontSize = Math.round(
+    baseFontSize * overlayTextStyle.secondaryScale
+  );
+  const secondaryOffset = secondaryFontSize * overlayTextStyle.lineSpacing;
+
+  const countdown = Math.max(
+    0,
+    Math.ceil(Math.max(config.respawnDelay - state.waitTimer, 0))
+  );
+  const headline =
+    countdown > 0 ? `Перерождение через ${countdown}…` : "Перерождение!";
+  const subline =
+    state.mode === "fade"
+      ? `Затухание: ${Math.round(fadeProgress * 100)}%`
+      : `Готовность: ${Math.round(waitProgress * 100)}%`;
+
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.shadowColor = overlayTextStyle.shadowColor;
+  ctx.shadowBlur = overlayTextStyle.shadowBlur;
+
+  const centerX = state.viewportWidth / 2;
+  const centerY = state.viewportHeight / 2;
+
+  ctx.font = `${overlayTextStyle.weight} ${Math.round(baseFontSize)}px ${overlayTextStyle.fontFamily}`;
+  ctx.fillStyle = overlayTextStyle.primaryFill;
+  ctx.fillText(headline, centerX, centerY - secondaryFontSize * 0.4);
+
+  ctx.font = `${overlayTextStyle.subWeight} ${secondaryFontSize}px ${overlayTextStyle.fontFamily}`;
+  ctx.fillStyle = overlayTextStyle.secondaryFill;
+  ctx.fillText(subline, centerX, centerY + secondaryOffset);
+
+  ctx.restore();
 }
 
 function hsl(h, s, l, a = 1) {
