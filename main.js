@@ -195,18 +195,36 @@ function setupInput() {
     { passive: false }
   );
 
+  const buttonDirections = {
+    up: { x: 0, y: -1 },
+    down: { x: 0, y: 1 },
+    left: { x: -1, y: 0 },
+    right: { x: 1, y: 0 },
+  };
+
+  const applyButtonDirection = (button) => {
+    const dirKey = button.dataset.dir;
+    if (!dirKey) return;
+    const dir = buttonDirections[dirKey];
+    if (!dir) return;
+    setDirection(dir);
+  };
+
   document.querySelectorAll(".arrow").forEach((button) => {
     button.addEventListener("pointerdown", (event) => {
       event.preventDefault();
-      const dir = button.dataset.dir;
-      if (!dir) return;
-      const mapping = {
-        up: { x: 0, y: -1 },
-        down: { x: 0, y: 1 },
-        left: { x: -1, y: 0 },
-        right: { x: 1, y: 0 },
-      };
-      setDirection(mapping[dir]);
+      applyButtonDirection(button);
+    });
+
+    button.addEventListener("click", () => {
+      applyButtonDirection(button);
+    });
+
+    button.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " " || event.key === "Spacebar") {
+        event.preventDefault();
+        applyButtonDirection(button);
+      }
     });
   });
 }
